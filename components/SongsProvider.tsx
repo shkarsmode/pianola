@@ -52,6 +52,7 @@ export function SongsProvider({ children }: { children: React.ReactNode }) {
   const [loaded, setLoaded] = useState(false);
   const [worker, setWorker] = useState<WorkerView>({ online: false, known: false, current: null, queue: [] });
   const topic = useRef<string | null>(null);
+  const queuedMsgs = useRef<object[]>([]);
   const lastSeen = useRef(0);
   const pending = useRef<{ id: string; timer: ReturnType<typeof setTimeout> } | null>(null);
 
@@ -67,7 +68,10 @@ export function SongsProvider({ children }: { children: React.ReactNode }) {
 
   // Messages to the PC worker go through ntfy.sh: the PC needs no open ports or tunnels.
   const publish = useCallback(async (msg: object) => {
-    if (!topic.current) return;
+    if (!topic.current) {
+      queuedMsgs.current.push(msg); // sent as soon as the topic is known
+      return;
+    }
     await fetch(`https://ntfy.sh/${topic.current}`, { method: "POST", body: JSON.stringify(msg) }).catch(() => undefined);
   }, []);
 
@@ -95,6 +99,7 @@ export function SongsProvider({ children }: { children: React.ReactNode }) {
         const data = await json<{ topic: string }>(await fetch("/api/worker", { cache: "no-store" }));
         if (closed) return;
         topic.current = data.topic;
+        for (const m of queuedMsgs.current.splice(0)) void publish(m);
         es = new EventSource(`https://ntfy.sh/${data.topic}-s/sse?since=60s`);
         es.onopen = () => ping(); // (re)connected: ask the worker to say hello
         es.onmessage = (e) => {
@@ -125,7 +130,7 @@ export function SongsProvider({ children }: { children: React.ReactNode }) {
       closed = true;
       es?.close();
     };
-  }, [refresh, ping]);
+  }, [refresh, ping, publish]);
 
   const busy = songs.some((s) => s.status === "queued" || s.status === "processing");
   useEffect(() => {

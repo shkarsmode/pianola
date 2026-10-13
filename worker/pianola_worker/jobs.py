@@ -120,6 +120,9 @@ class JobRunner:
             self.kick()
         elif kind == "ping":
             self.announce("pong", id=msg.get("id"))
+            # someone opened the app: a cheap moment to look for songs a lost kick left waiting
+            if not self.current:
+                self.kick()
 
     def run_forever(self, idle_seconds: float = 15 * 60) -> None:
         while True:
