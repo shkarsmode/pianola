@@ -1,0 +1,4 @@
+worker/
+.scratch/
+node_modules/
+.next/
