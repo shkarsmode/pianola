@@ -101,6 +101,15 @@ export function SettingsPanel({
         <input type="range" min={0} max={1} step={0.05} value={settings.pianoVol} onChange={(e) => onChange({ pianoVol: Number(e.target.value) })} className="slim w-full" />
       </div>
 
+      <div className="py-2">
+        <div className="mb-1 flex justify-between text-[13.5px]">
+          <span>Затримка звуку</span>
+          <span className="text-faint tabular-nums">{settings.latencyMs} мс</span>
+        </div>
+        <div className="mb-2 text-[11.5px] leading-4 text-faint">Якщо в навушниках (Bluetooth) звук запізнюється від нот — посунь вправо</div>
+        <input type="range" min={0} max={400} step={10} value={settings.latencyMs} onChange={(e) => onChange({ latencyMs: Number(e.target.value) })} className="slim w-full" />
+      </div>
+
       <div className="mt-1 border-t border-line pt-3 pb-1 text-[11px] font-medium tracking-wide text-faint uppercase">Навчання</div>
       <Row label="Цикл прискорюється" hint="Кожне коло циклу на 5% швидше, поки не 100%">
         <Switch on={settings.loopRamp} onChange={(v) => onChange({ loopRamp: v })} />

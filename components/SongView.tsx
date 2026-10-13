@@ -496,6 +496,7 @@ function Player2({ song, analysis }: { song: SongMeta & { audioUrl?: string }; a
           onChordClick={(i, rect) => setChordOpen({ chord: chordList[i], rect })}
           onKey={(p) => player?.preview([p], 90, 1)}
           onFrame={onFrame}
+          delay={settings.latencyMs / 1000}
         />
 
         <div className="pointer-events-none absolute top-3 right-3 flex items-center gap-1.5 rounded-lg bg-black/45 px-2 py-1 text-[11.5px] font-medium text-white/85 backdrop-blur-sm max-sm:hidden">

@@ -515,8 +515,19 @@ def top_voice(notes: list[tuple], min_pitch: int = 57) -> list[tuple]:
     return [(p, round(s, 3), round(e, 3), v) for p, s, e, v in mel if e - s >= 0.04]
 
 
+def _is_tune(notes: list[tuple]) -> bool:
+    """A hook or instrumental tune moves around; the top of strummed or stabbed chords repeats
+    two or three notes. Only the former should stand in for the singer."""
+    if len(notes) < 4:
+        return False
+    pitches = [n[0] for n in notes]
+    repeats = sum(1 for a, b in zip(pitches, pitches[1:]) if a == b) / (len(pitches) - 1)
+    steps = [abs(b - a) for a, b in zip(pitches, pitches[1:])]
+    return len(set(pitches)) >= 4 and repeats < 0.45 and float(np.mean(steps)) >= 1.0
+
+
 def fill_gaps(melody: list[tuple], backup: list[tuple], beats: list[float], meter: int) -> list[tuple]:
-    """Where the singer is silent for two bars or more, borrow the top voice of the band."""
+    """Where the singer is silent for two bars or more, borrow the band's top voice if it is a tune."""
     if not backup:
         return melody
     bar = float(np.median(np.diff(beats))) * meter if len(beats) > 1 else 2.0
@@ -528,6 +539,8 @@ def fill_gaps(melody: list[tuple], backup: list[tuple], beats: list[float], mete
     for k in range(0, len(bounds) - 1, 2):
         a, b = bounds[k], bounds[k + 1]
         if b - a >= 2 * bar:
-            out.extend(n for n in backup if a + 0.1 <= n[1] and n[2] <= b - 0.05)
+            borrowed = [n for n in backup if a + 0.1 <= n[1] and n[2] <= b - 0.05]
+            if _is_tune(borrowed):
+                out.extend(borrowed)
     out.sort(key=lambda n: n[1])
     return out

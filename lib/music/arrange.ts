@@ -62,19 +62,20 @@ interface BChord extends Chord {
 
 interface LevelSpec {
   minNoteSec: number; // shorter melody notes are merged away
+  repeatMergeSec: number; // same-key repeats quicker than this become one note (0 = keep all)
   minChordBeats: number;
   simpleChords: boolean;
 }
 
 const SPECS: Record<LevelId, LevelSpec> = {
   // The tune is the song: only notes quicker than a grid step (ornaments, slides) are merged.
-  beginner: { minNoteSec: 0.15, minChordBeats: 2, simpleChords: true },
-  beginner_plus: { minNoteSec: 0.13, minChordBeats: 1, simpleChords: true },
-  intermediate: { minNoteSec: 0.11, minChordBeats: 1, simpleChords: false },
-  intermediate_plus: { minNoteSec: 0.09, minChordBeats: 1, simpleChords: false },
-  advanced: { minNoteSec: 0.07, minChordBeats: 1, simpleChords: false },
-  adaptive: { minNoteSec: 0.08, minChordBeats: 1, simpleChords: false },
-  pretty: { minNoteSec: 0.13, minChordBeats: 1, simpleChords: false },
+  beginner: { minNoteSec: 0.15, repeatMergeSec: 0.3, minChordBeats: 2, simpleChords: true },
+  beginner_plus: { minNoteSec: 0.13, repeatMergeSec: 0.2, minChordBeats: 1, simpleChords: true },
+  intermediate: { minNoteSec: 0.11, repeatMergeSec: 0.14, minChordBeats: 1, simpleChords: false },
+  intermediate_plus: { minNoteSec: 0.09, repeatMergeSec: 0, minChordBeats: 1, simpleChords: false },
+  advanced: { minNoteSec: 0.07, repeatMergeSec: 0, minChordBeats: 1, simpleChords: false },
+  adaptive: { minNoteSec: 0.08, repeatMergeSec: 0, minChordBeats: 1, simpleChords: false },
+  pretty: { minNoteSec: 0.13, repeatMergeSec: 0.2, minChordBeats: 1, simpleChords: false },
 };
 
 const EPS = 1e-6;
@@ -126,6 +127,20 @@ function prepareMelody(an: Analysis, map: BeatMap, spec: LevelSpec): BNote[] {
     } else if (prev && Math.abs(prev.b + prev.d - n.b) < EPS) {
       prev.d += n.d;
     }
+  }
+
+  // Rapid strikes of one key (a sung monotone, an ostinato) become one held note for learners.
+  if (spec.repeatMergeSec > 0) {
+    const merged: BNote[] = [];
+    for (const n of out) {
+      const last = merged[merged.length - 1];
+      if (last && last.p === n.p && map.timeAt(n.b) - map.timeAt(last.b) < spec.repeatMergeSec && Math.abs(last.b + last.d - n.b) < 0.75) {
+        last.d = n.b + n.d - last.b;
+        continue;
+      }
+      merged.push(n);
+    }
+    out.splice(0, out.length, ...merged);
   }
 
   // Put the tune where the right hand lives: as many notes as possible between G3 and A5,

@@ -17,14 +17,16 @@ interface Props {
   onChordClick: (index: number, rect: DOMRect) => void;
   onKey: (pitch: number) => void;
   onFrame?: (t: number) => void;
+  /** Seconds the picture waits for the sound (headphone latency). */
+  delay?: number;
 }
 
-export function PianoRoll({ player, notes, chords, bars, beats, range, opts, pressed, onChordClick, onKey, onFrame }: Props) {
+export function PianoRoll({ player, notes, chords, bars, beats, range, opts, pressed, onChordClick, onKey, onFrame, delay = 0 }: Props) {
   const wrap = useRef<HTMLDivElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const renderer = useRef<RollRenderer | null>(null);
-  const cb = useRef({ onChordClick, onKey, onFrame, player });
-  cb.current = { onChordClick, onKey, onFrame, player };
+  const cb = useRef({ onChordClick, onKey, onFrame, player, delay });
+  cb.current = { onChordClick, onKey, onFrame, player, delay };
 
   useEffect(() => {
     if (!canvas.current || !wrap.current) return;
@@ -41,7 +43,7 @@ export function PianoRoll({ player, notes, chords, bars, beats, range, opts, pre
       const p = cb.current.player;
       const t = p ? p.tick() : 0;
       r.pressed = pressed.current ?? r.pressed;
-      r.draw(t);
+      r.draw(p?.playing ? t - cb.current.delay : t);
       cb.current.onFrame?.(t);
       raf = requestAnimationFrame(loop);
     };

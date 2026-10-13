@@ -15,6 +15,7 @@ export interface Settings {
   myHand: "both" | "R" | "L";
   metronome: boolean;
   loopRamp: boolean; // a loop speeds up by 5% each pass, up to 100%
+  latencyMs: number; // sound reaches the ears this much after the notes reach the keys (Bluetooth)
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -30,6 +31,7 @@ export const DEFAULT_SETTINGS: Settings = {
   myHand: "both",
   metronome: false,
   loopRamp: false,
+  latencyMs: 0,
 };
 
 const KEY = "pianola:settings";
