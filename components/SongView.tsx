@@ -56,51 +56,67 @@ function useSongData(id: string) {
 
 export function SongView({ id }: { id: string }) {
   const { data, error, listed } = useSongData(id);
-  const { worker, retry } = useLibrary();
   const song = data?.song;
   const analysis = data?.analysis ?? null;
 
   if (error) return <Centered title="Не вдалося відкрити пісню" text={error} />;
   if (!song || (song.status === "ready" && !analysis)) return <Centered title="" text="Відкриваю…" />;
   if (song.status !== "ready" || !analysis) {
-    const cur = worker.current?.id === id ? worker.current : null;
-    const status = listed?.status ?? song.status;
-    return (
-      <div className="flex h-full flex-col">
-        <div className="flex h-14 shrink-0 items-center gap-2 px-3">
-          <SidebarButton />
-          <h1 className="truncate text-[15px] font-semibold">{listed?.title ?? song.title}</h1>
-        </div>
-        <div className="flex flex-1 items-center justify-center px-6 pb-20">
-          <div className="pop-in w-full max-w-[380px] text-center">
-            {status === "error" ? (
-              <>
-                <p className="text-[17px] font-semibold">Не вдалося розібрати пісню</p>
-                <p className="mt-2 text-[14px] leading-5 text-mute">{listed?.error ?? song.error ?? "Невідома помилка"}</p>
-                <button onClick={() => retry(id)} className="mx-auto mt-5 flex h-10 items-center gap-2 rounded-xl bg-ink px-4 text-[14px] font-medium text-white">
-                  <IconRetry size={16} />
-                  Спробувати ще раз
-                </button>
-              </>
-            ) : (
-              <>
-                <p className="text-[17px] font-semibold">{cur ? (STAGE_LABEL[cur.stage] ?? "Обробка") : worker.online ? "У черзі" : "Чекає на ПК"}</p>
-                <div className="mx-auto mt-4 h-1.5 w-full overflow-hidden rounded-full bg-hover">
-                  <div className="h-full rounded-full bg-ink transition-[width] duration-500" style={{ width: `${Math.round((cur?.progress ?? 0.02) * 100)}%` }} />
-                </div>
-                <p className="mt-3 text-[13.5px] leading-5 text-mute">
-                  {worker.online
-                    ? "Розбираю мелодію, акорди й такти — зазвичай це хвилина-дві. Можна закрити сторінку."
-                    : "Обробник на ПК зараз не на зв’язку. Пісня в черзі й обробиться, щойно ПК увімкнеться."}
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-    );
+    return <Waiting id={id} title={listed?.title ?? song.title} status={listed?.status ?? song.status} error={listed?.error ?? song.error} />;
   }
   return <Player2 key={id} song={song} analysis={analysis} />;
+}
+
+function Waiting({ id, title, status, error }: { id: string; title: string; status: SongMeta["status"]; error?: string }) {
+  const { worker, retry, ping } = useLibrary();
+  useEffect(() => {
+    if (!worker.online) ping();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const cur = worker.current?.id === id ? worker.current : null;
+  const headline = cur
+    ? (STAGE_LABEL[cur.stage] ?? "Обробка")
+    : worker.online
+      ? worker.current
+        ? "Чекає своєї черги"
+        : "У черзі"
+      : worker.known
+        ? "Чекає на ПК"
+        : "Перевіряю, чи увімкнений ПК…";
+  return (
+    <div className="flex h-full flex-col">
+      <div className="flex h-14 shrink-0 items-center gap-2 px-3">
+        <SidebarButton />
+        <h1 className="truncate text-[15px] font-semibold">{title}</h1>
+      </div>
+      <div className="flex flex-1 items-center justify-center px-6 pb-20">
+        <div className="pop-in w-full max-w-[380px] text-center">
+          {status === "error" ? (
+            <>
+              <p className="text-[17px] font-semibold">Не вдалося розібрати пісню</p>
+              <p className="mt-2 text-[14px] leading-5 text-mute">{error ?? "Невідома помилка"}</p>
+              <button onClick={() => retry(id)} className="mx-auto mt-5 flex h-10 items-center gap-2 rounded-xl bg-ink px-4 text-[14px] font-medium text-white">
+                <IconRetry size={16} />
+                Спробувати ще раз
+              </button>
+            </>
+          ) : (
+            <>
+              <p className="text-[17px] font-semibold">{headline}</p>
+              <div className="mx-auto mt-4 h-1.5 w-full overflow-hidden rounded-full bg-hover">
+                <div className="h-full rounded-full bg-ink transition-[width] duration-500" style={{ width: `${Math.round((cur?.progress ?? 0.02) * 100)}%` }} />
+              </div>
+              <p className="mt-3 text-[13.5px] leading-5 text-mute">
+                {worker.online || !worker.known
+                  ? "Розбираю мелодію, акорди й такти — зазвичай це хвилина-дві. Можна закрити сторінку."
+                  : "Обробник на ПК зараз не на зв’язку. Пісня в черзі й обробиться, щойно ПК увімкнеться."}
+              </p>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function Centered({ title, text }: { title: string; text: string }) {
@@ -133,6 +149,10 @@ function Player2({ song, analysis }: { song: SongMeta & { audioUrl?: string }; a
   const [chordOpen, setChordOpen] = useState<{ chord: Chord; rect: DOMRect | null } | null>(null);
   const [panel, setPanel] = useState<"settings" | "chords" | null>(null);
   const [toast, setToast] = useState("");
+  const chordOpenRef = useRef(false);
+  const panelRef = useRef(false);
+  chordOpenRef.current = !!chordOpen;
+  panelRef.current = !!panel;
   const pressed = useRef(new Map<number, Hand | "wrong">());
   const tRefs = useRef<TransportRefs>({ head: null, fill: null, time: null });
 
@@ -404,8 +424,10 @@ function Player2({ song, analysis }: { song: SongMeta & { audioUrl?: string }; a
       } else if (e.key === "Home") player.seek(loop?.a ?? 0);
       else if (e.key.toLowerCase() === "l") toggleLoop();
       else if (e.key === "Escape") {
-        setChordOpen(null);
-        setPanel(null);
+        if (chordOpenRef.current || panelRef.current) {
+          setChordOpen(null);
+          setPanel(null);
+        } else setLoopState(null);
       }
     };
     window.addEventListener("keydown", onKey);

@@ -36,6 +36,8 @@ def _onset_env(mono: np.ndarray) -> np.ndarray:
         flux = torch.clamp(db[:, 1:] - db[:, :-1], min=0).mean(dim=0)
         env = torch.cat([flux[:1] * 0, flux]).cpu().numpy()
         del x, spec, db, flux
+    if dev == "cuda":
+        torch.cuda.empty_cache()
     return env
 
 
@@ -76,15 +78,44 @@ def _feel_from_profile(prof: np.ndarray) -> dict:
     triplet = at(2 / 3) + 0.5 * at(1 / 3)
     subdiv = 3 if (swing >= 0.585 and triplet > straight) else 4
     conf = min(1.0, abs(triplet - straight) / max(abs(triplet) + abs(straight), 1e-9))
+    if max(at(0.5), at(2 / 3), at(1 / 3), at(0.25), at(0.75)) < 0.08:
+        subdiv, conf = 4, 0.0  # nothing happens between the beats: no evidence either way
     offset = (k0 if k0 < BINS / 2 else k0 - BINS) / BINS
     return {"subdiv": subdiv, "swing": round(float(swing), 3), "offset": round(float(offset), 3),
             "conf": round(float(conf), 3), "straight": round(float(straight), 3),
             "triplet": round(float(triplet), 3)}
 
 
-def detect_feel(stems: dict[str, np.ndarray], sr: int, beats: list[float]) -> dict:
+def _vocal_feel(onsets, b: np.ndarray) -> dict | None:
+    """Feel from the singer alone: are their offbeats straight eighths (about 1/2) or swung
+    (about 2/3)? Counted after removing the singer's constant lead or lag; None if unclear."""
+    x = np.array([np.searchsorted(b, t) - 1 + 0.0 for t in onsets])
+    ok = (x >= 0) & (x < len(b) - 1)
+    if ok.sum() < 24:
+        return None
+    i = x[ok].astype(int)
+    t = np.asarray(onsets)[ok]
+    f = (t - b[i]) / (b[i + 1] - b[i])
+    lead = np.where(f > 0.5, f - 1, f)
+    near = np.abs(lead) < 0.15
+    if near.sum() >= 8:
+        f = (f - np.median(lead[near])) % 1.0
+    straight = int(((f > 0.45) & (f < 0.55)).sum())
+    swung = int(((f > 0.6) & (f < 0.72)).sum())
+    if straight + swung < 12:
+        return None
+    if swung >= 2 * straight:
+        return {"subdiv": 3, "swing": round(float(np.median(f[(f > 0.4) & (f < 0.85)])), 3),
+                "offset": 0.0, "conf": round(min(1.0, swung / max(1, 2 * straight) - 1), 3)}
+    if straight >= 2 * swung:
+        return {"subdiv": 4, "swing": 0.5, "offset": 0.0, "conf": round(min(1.0, straight / max(1, 2 * swung) - 1), 3)}
+    return None
+
+
+def detect_feel(stems: dict[str, np.ndarray], sr: int, beats: list[float], vocal_onsets=None) -> dict:
     """Straight or triplet feel from the band: drums, bass and the other instruments each
-    vote with their attack profile inside the beat (vocals are too loose to trust)."""
+    vote with their attack profile inside the beat. Only when the band leaves it open
+    (sustained pads, no offbeat attacks) do the singer's syllable onsets decide."""
     b = np.asarray(beats, dtype=float)
     if len(b) < 8:
         return {"subdiv": 4, "swing": 0.5, "offset": 0.0, "conf": 0.0}
@@ -98,14 +129,12 @@ def detect_feel(stems: dict[str, np.ndarray], sr: int, beats: list[float]) -> di
             continue
         p = p - np.median(p)
         total += np.clip(p, 0, None) / max(p.max(), 1e-9)
-    try:
-        import torch
-
-        if torch.cuda.is_available():
-            torch.cuda.empty_cache()
-    except ImportError:
-        pass
-    return _feel_from_profile(total)
+    feel = _feel_from_profile(total)
+    if feel["conf"] < 0.2 and vocal_onsets is not None:
+        sung = _vocal_feel(vocal_onsets, b)
+        if sung is not None:
+            feel = {**sung, "source": "vocals"}
+    return feel
 
 
 def feel_of_mix(y: np.ndarray, sr: int, beats: list[float]) -> dict:

@@ -178,13 +178,15 @@ class JobRunner:
             if meta.get("title") and (not title or title.startswith(PLACEHOLDER_PREFIX)):
                 title = meta["title"].strip()[:160]
             old = [song.get("audioPath"), song.get("analysisPath")]
-            update_song(
+            saved = update_song(
                 self.blob, sid,
                 status="ready", error=None, title=title,
                 audioPath=audio["pathname"], analysisPath=analysis["pathname"], uploadPath=None,
                 duration=result["duration"], key=result["key"]["name"], tempo=result["tempo"],
                 thumb=meta.get("thumb"),
             )
+            if not saved:  # the song was deleted while it was being processed
+                old += [audio["pathname"], analysis["pathname"]]
             self.blob.delete([p for p in old if p] + ([song["uploadPath"]] if song.get("uploadPath") else []))
             log.info("done %s in %.1fs", sid, time.time() - t0)
             with self._lock:

@@ -22,6 +22,8 @@ interface LibraryCtx {
   remove: (id: string) => Promise<void>;
   retry: (id: string) => Promise<void>;
   pin: (id: string, pinned: boolean) => Promise<void>;
+  /** Asks the PC worker to answer (refreshes the online status). */
+  ping: () => void;
 }
 
 const Ctx = createContext<LibraryCtx | null>(null);
@@ -94,6 +96,7 @@ export function SongsProvider({ children }: { children: React.ReactNode }) {
         if (closed) return;
         topic.current = data.topic;
         es = new EventSource(`https://ntfy.sh/${data.topic}-s/sse?since=60s`);
+        es.onopen = () => ping(); // (re)connected: ask the worker to say hello
         es.onmessage = (e) => {
           let msg: { t?: string; current?: WorkerView["current"]; queue?: string[]; id?: string; song?: string };
           let at = Date.now();
@@ -114,7 +117,6 @@ export function SongsProvider({ children }: { children: React.ReactNode }) {
           setWorker({ online: true, known: true, current: msg.current ?? null, queue: msg.queue ?? [] });
           if (msg.t === "done") void refresh();
         };
-        ping();
       } catch {
         setWorker((w) => ({ ...w, known: true }));
       }
@@ -192,12 +194,13 @@ export function SongsProvider({ children }: { children: React.ReactNode }) {
         await patch(id, { retry: true });
         void kick();
       },
+      ping,
       remove: async (id) => {
         setSongs((list) => list.filter((s) => s.id !== id));
         await fetch(`/api/songs/${id}`, { method: "DELETE" });
       },
     }),
-    [songs, loaded, worker, refresh, addUrl, addFile, patch, kick],
+    [songs, loaded, worker, refresh, addUrl, addFile, patch, kick, ping],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

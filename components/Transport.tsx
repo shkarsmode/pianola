@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Settings } from "@/lib/settings";
-import { IconBack, IconDots, IconHourglass, IconLoop, IconMetronome, IconMinus, IconPause, IconPlay, IconPlus, IconTranspose } from "./Icons";
+import { IconBack, IconDots, IconHourglass, IconLoop, IconMetronome, IconMinus, IconPause, IconPlay, IconPlus, IconTranspose, IconX } from "./Icons";
 
 export interface TransportRefs {
   head: HTMLDivElement | null;
@@ -199,6 +199,17 @@ export function Transport(p: Props) {
             <span ref={(el) => void (p.refs.current.time = el)}>0:00</span> / {fmtTime(p.duration)}
           </span>
           {p.frozen && <span className="ml-1 rounded-md bg-accent-soft px-1.5 py-0.5 text-[11.5px] font-medium text-accent">чекаю на тебе</span>}
+          {p.loop && (
+            <button
+              onClick={() => p.onLoop(null)}
+              title="Прибрати цикл (Esc)"
+              className="ml-1 flex h-7 items-center gap-1 rounded-lg bg-accent-soft pr-1.5 pl-2 text-[12px] font-medium text-accent hover:bg-accent/15"
+            >
+              <IconLoop size={13} />
+              {fmtTime(p.loop.a)}–{fmtTime(p.loop.b)}
+              <IconX size={13} className="ml-0.5" />
+            </button>
+          )}
         </div>
 
         {(() => {

@@ -12,13 +12,15 @@ QUALITIES: dict[str, tuple[dict[int, float], str]] = {
     "m7": ({0: 1.0, 3: 0.95, 7: 0.6, 10: 0.9}, "m7"),
     "maj7": ({0: 1.0, 4: 0.95, 7: 0.6, 11: 0.9}, "maj7"),
     "dim": ({0: 1.0, 3: 1.0, 6: 1.0}, "dim"),
+    "dim7": ({0: 1.0, 3: 1.0, 6: 1.0, 9: 1.0}, "dim7"),
+    "m7b5": ({0: 1.0, 3: 1.0, 6: 0.9, 10: 0.9}, "m7b5"),
     "sus4": ({0: 1.0, 5: 1.0, 7: 0.8}, "sus4"),
     "sus2": ({0: 1.0, 2: 1.0, 7: 0.8}, "sus2"),
     "aug": ({0: 1.0, 4: 1.0, 8: 1.0}, "aug"),
 }
 # Simple triads unless the extra note is really there.
 PRIOR = {"maj": 0.0, "min": 0.0, "7": -0.025, "m7": -0.045, "maj7": -0.05,
-         "dim": -0.09, "sus4": -0.1, "sus2": -0.11, "aug": -0.12}
+         "dim": -0.09, "dim7": -0.06, "m7b5": -0.08, "sus4": -0.1, "sus2": -0.11, "aug": -0.12}
 
 KK_MAJOR = np.array([6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88])
 KK_MINOR = np.array([6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17])
@@ -88,8 +90,8 @@ def key_from_chords(chords: list[dict], notes: list[tuple], extra: list[tuple] |
         for c in segs:
             d = c["e"] - c["s"]
             root, q = c["root"], c["q"]
-            family = "min" if q in ("min", "m7") else "dim" if q == "dim" else "maj"
-            allowed = {("min" if x in ("min", "m7") else "dim" if x == "dim" else "maj") for x in dia.get(root, set())}
+            family = "min" if q in ("min", "m7") else "dim" if q in ("dim", "dim7", "m7b5") else "maj"
+            allowed = {("min" if x in ("min", "m7") else "dim" if x in ("dim", "dim7", "m7b5") else "maj") for x in dia.get(root, set())}
             if family in allowed:
                 fit += d * (1.25 if root == tonic and q in tonic_q else 1.0)
             elif family == "maj" and any((root - r2) % 12 == 7 for r2 in dia):
@@ -111,10 +113,10 @@ def diatonic_roots(tonic: int, mode: str) -> dict[int, set[str]]:
     """Chords that belong to the key (natural + harmonic minor dominant)."""
     if mode == "major":
         steps = [(0, {"maj", "maj7"}), (2, {"min", "m7"}), (4, {"min", "m7"}), (5, {"maj", "maj7"}),
-                 (7, {"maj", "7"}), (9, {"min", "m7"}), (11, {"dim"})]
+                 (7, {"maj", "7"}), (9, {"min", "m7"}), (11, {"dim", "m7b5"})]
     else:
-        steps = [(0, {"min", "m7"}), (2, {"dim"}), (3, {"maj", "maj7"}), (5, {"min", "m7"}),
-                 (7, {"min", "maj", "7"}), (8, {"maj", "maj7"}), (10, {"maj", "7"})]
+        steps = [(0, {"min", "m7"}), (2, {"dim", "m7b5"}), (3, {"maj", "maj7"}), (5, {"min", "m7"}),
+                 (7, {"min", "maj", "7"}), (8, {"maj", "maj7"}), (10, {"maj", "7"}), (11, {"dim", "dim7"})]
     return {(tonic + i) % 12: q for i, q in steps}
 
 
@@ -247,6 +249,52 @@ def recognize(notes, pedals, beats, bar_pos, meter, melody=None, key=None) -> li
             j += 1
         raw.append([i, j, int(path[i])])
         i = j + 1
+
+    # Short colour chords (sus, aug, dim) and one-beat chords outside the key are mostly passing
+    # notes over the real harmony: fold them into a neighbour that shares two notes with them.
+    def pcs_of(lab: int) -> set[int]:
+        r, q = labels[lab]
+        return {(r + i) % 12 for i in QUALITIES[q][0]}
+
+    k = 0
+    while k < len(raw):
+        i, j, lab = raw[k]
+        if lab >= len(labels):
+            k += 1
+            continue
+        r, q = labels[lab]
+        beats_long = j - i + 1
+        outside = q not in diatonic.get(r, set()) and not (q == "7" and any((r - x) % 12 == 7 for x in diatonic))
+        passing = (q in ("sus4", "sus2", "aug") and beats_long <= 2) or (outside and beats_long <= 1)
+        if passing:
+            here = pcs_of(lab)
+            prev = raw[k - 1] if k > 0 and raw[k - 1][2] < len(labels) else None
+            nxt = raw[k + 1] if k + 1 < len(raw) and raw[k + 1][2] < len(labels) else None
+            if beats_long <= 1 and (prev or nxt):
+                # a single beat of an odd chord is a passing harmony: it belongs to its neighbour
+                if prev:
+                    prev[1] = j
+                else:
+                    nxt[0] = i
+                raw.pop(k)
+                continue
+            if prev and len(here & pcs_of(prev[2])) >= 2:
+                prev[1] = j
+                raw.pop(k)
+                continue
+            if nxt and len(here & pcs_of(nxt[2])) >= 2:
+                nxt[0] = i
+                raw.pop(k)
+                continue
+        k += 1
+    # neighbours that became the same chord join up
+    merged: list[list[int]] = []
+    for seg in raw:
+        if merged and merged[-1][2] == seg[2]:
+            merged[-1][1] = seg[1]
+        else:
+            merged.append(seg)
+    raw = merged
 
     # A major chord that resolves down a fifth is a dominant: call it a 7th when the
     # seventh is audible at all (E -> Am becomes E7 -> Am, A -> Dm becomes A7 -> Dm).

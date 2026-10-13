@@ -125,6 +125,13 @@ def syllables(vp: dict) -> list[tuple[int, int, int]]:
             peak = seg.max()
             thr = max(peak - 6.0, (L[s] + peak) / 2) if k > 0 else peak - 6.0
             o = s + int(np.argmax(seg >= thr))
+            if k == 0:
+                # an unvoiced consonant before the vowel (s, t, k...) is part of the attack:
+                # the beat falls between where it starts and where the vowel sounds
+                c = s
+                while c > max(0, s - 12) and L[c - 1] >= peak - 15.0 and not voiced[c - 1]:
+                    c -= 1
+                o = (c + o) // 2 if c < s else o
             out.append((s, o, e))
     return out
 

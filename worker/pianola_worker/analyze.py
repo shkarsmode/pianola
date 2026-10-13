@@ -58,9 +58,10 @@ def analyze(src: Path, workdir: Path, progress: Progress = lambda stage, frac: N
         notes = transcribe_any(stems["other"] + stems["bass"])
         pedals = []
         mark("transcribe", 0.72)
-        feel = detect_feel(stems, SR, grid["beats"])  # straight or triplet, from the band
         band_top = top_voice(notes)
         vp = vocal_pitch(stems["vocals"], dev) if stem_shares.get("vocals", 0) >= 0.04 else None
+        # straight or triplet: from the band, from the singer only if the band leaves it open
+        feel = detect_feel(stems, SR, grid["beats"], vp["onsets"] if vp is not None else None)
         if vp is not None:
             sung, _ = vocal_melody(vp, grid["beats"], grid["barPos"], feel, notes)
             melody = fill_gaps(sung, band_top, grid["beats"], grid["timeSig"])
