@@ -465,6 +465,50 @@ function fillEmptyBars(mel: BNote[], chords: BChord[], map: BeatMap): BNote[] {
   return out;
 }
 
+// ---------------------------------------------------------------- the song's own bass line
+
+/**
+ * The bass player's line, from the transcribed accompaniment: lowest note of each attack,
+ * on the song's grid, held to chord tones where it lingers. Following its rhythm is what makes
+ * a piano part groove like the record. Returns null when the song has no real bass line.
+ */
+function bassLine(an: Analysis, map: BeatMap, chords: BChord[]): BNote[] | null {
+  const grid = 1 / (an.subdiv || 4);
+  const low = an.notes.filter(([p, s, e]) => p < 55 && e - s >= 0.08).sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+  const picked: [number, number, number, number][] = [];
+  for (const n of low) {
+    const last = picked[picked.length - 1];
+    if (last && n[1] - last[1] < 0.04) {
+      if (n[0] < last[0]) picked[picked.length - 1] = n;
+      continue;
+    }
+    picked.push(n);
+  }
+  const out: BNote[] = [];
+  let prevPitch = 43;
+  for (let i = 0; i < picked.length; i++) {
+    const [p, s, e, v] = picked[i];
+    const b = quant(map.beatAt(s), grid);
+    const nextStart = i + 1 < picked.length ? quant(map.beatAt(picked[i + 1][1]), grid) : Infinity;
+    let end = Math.min(quant(map.beatAt(e), grid), nextStart);
+    if (end <= b + EPS) end = b + grid;
+    const last = out[out.length - 1];
+    if (last && Math.abs(last.b - b) < EPS) continue; // one note per grid slot
+    if (last && map.timeAt(b) - map.timeAt(last.b) < 0.12) continue; // quicker than a hand repeats
+    let pc0 = ((p % 12) + 12) % 12;
+    const c = chordAt(chords, b);
+    if (c && end - b >= 1 - EPS && !c.pcs.includes(pc0)) pc0 = c.bass; // a held wrong note: take the chord's bass
+    // nearest octave to the previous note, inside C2..E3
+    let q = pitchAtOrAbove(pc0, 36);
+    if (q + 12 <= 52 && Math.abs(q + 12 - prevPitch) < Math.abs(q - prevPitch)) q += 12;
+    prevPitch = q;
+    out.push({ p: q, b, d: end - b, v: Math.round(Math.min(78, 52 + v * 0.2)), hand: "L", role: "bass" });
+  }
+  if (!out.length) return null;
+  const covered = map.bars.filter((bar) => out.some((n) => n.b >= bar.start - EPS && n.b < bar.start + bar.len - EPS)).length;
+  return covered >= map.bars.length * 0.5 ? out : null;
+}
+
 // ---------------------------------------------------------------- raw performance (piano sources)
 
 function rawPart(an: Analysis, map: BeatMap, level: LevelId): PNote[] {
@@ -584,7 +628,11 @@ export function arrange(an: Analysis, level: LevelId): Arrangement {
 
   const mel = prepareMelody(an, map, spec);
   const chords = prepareChords(an, map, spec);
-  const parts: BNote[] = [...mel, ...leftHand(level, chords, map, an)];
+  // Adaptive on a band recording follows the record's own bass line (its groove), with a
+  // chord tone under long melody notes; songs without a usable bass get the bass+chord pattern.
+  const bass = level === "adaptive" && an.sourceType === "mix" ? bassLine(an, map, chords) : null;
+  const parts: BNote[] = [...mel, ...(bass ?? leftHand(level, chords, map, an))];
+  if (bass) parts.push(...harmonise(mel, chords, 1, true, 1));
   if (level === "intermediate_plus") parts.push(...harmonise(mel, chords, 1, true, 1));
   if (level === "advanced") parts.push(...harmonise(mel, chords, 0.5, false, 2));
   if (level === "pretty") parts.push(...harmonise(mel, chords, 2, true, 1));
