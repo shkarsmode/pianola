@@ -219,6 +219,8 @@ export class RollRenderer {
 
     // notes
     const active = new Map<number, Hand>();
+    // a run of quick repeated notes on one key with one finger shows the number once
+    const lastBadge = new Map<number, { finger: number; top: number }>();
     const from = this.lowerBound(t - this.maxDur);
     const colors = { L: hexToRgb(this.opts.colors.L), R: hexToRgb(this.opts.colors.R) };
     ctx.textAlign = "center";
@@ -257,7 +259,12 @@ export class RollRenderer {
       // labels sit at the bottom of the note, where the eye meets the keyboard
       let labelBottom = bottom - 3;
       const badge = Math.min(nw - 2, 18);
-      if (this.opts.fingers && n.finger && nh >= 10 && badge < 9 && nw >= 5) {
+      const prevBadge = lastBadge.get(n.pitch);
+      const repeated = !!n.finger && prevBadge?.finger === n.finger && prevBadge.top - bottom < badge + 6;
+      if (n.finger && !repeated) lastBadge.set(n.pitch, { finger: n.finger, top: bottom - badge - 3 });
+      if (repeated) {
+        // same finger again right after: no new badge
+      } else if (this.opts.fingers && n.finger && nh >= 10 && badge < 9 && nw >= 5) {
         // narrow keys (a phone in portrait): the number alone, no badge
         ctx.fillStyle = "rgba(255,255,255,0.95)";
         ctx.font = `700 ${Math.max(7, Math.min(10, nw * 1.1))}px ${this.font}`;
