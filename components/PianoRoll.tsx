@@ -98,7 +98,7 @@ export function PianoRoll({ player, notes, chords, bars, beats, range, opts, pre
       const { y } = pos(e);
       const dy = y - drag.y;
       if (Math.abs(dy) > 4) drag.moved = true;
-      if (drag.moved) p.seek(drag.t0 + dy / r.opts.pxPerSec);
+      if (drag.moved) p.seek(drag.t0 + dy / r.pps);
     };
     const up = () => {
       const p = cb.current.player;
@@ -110,7 +110,7 @@ export function PianoRoll({ player, notes, chords, bars, beats, range, opts, pre
       const p = cb.current.player;
       if (!r || !p) return;
       e.preventDefault();
-      p.seek(p.time() - (e.deltaY / r.opts.pxPerSec) * 0.6);
+      p.seek(p.time() - (e.deltaY / r.pps) * 0.6);
     };
     el.addEventListener("pointerdown", down);
     el.addEventListener("pointermove", move);

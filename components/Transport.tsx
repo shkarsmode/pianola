@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Settings } from "@/lib/settings";
-import { IconBack, IconHourglass, IconLoop, IconMetronome, IconMinus, IconPause, IconPlay, IconPlus, IconTranspose } from "./Icons";
+import { IconBack, IconDots, IconHourglass, IconLoop, IconMetronome, IconMinus, IconPause, IconPlay, IconPlus, IconTranspose } from "./Icons";
 
 export interface TransportRefs {
   head: HTMLDivElement | null;
@@ -91,7 +91,25 @@ function Toggle({ on, onClick, title, children }: { on: boolean; onClick: () => 
 
 export function Transport(p: Props) {
   const bar = useRef<HTMLDivElement>(null);
+  const moreRef = useRef<HTMLDivElement>(null);
   const [sel, setSel] = useState<{ a: number; b: number } | null>(null);
+  const [compact, setCompact] = useState(false);
+  const [more, setMore] = useState(false);
+
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1180px), (max-height: 520px)");
+    const apply = () => setCompact(mq.matches);
+    apply();
+    mq.addEventListener("change", apply);
+    return () => mq.removeEventListener("change", apply);
+  }, []);
+
+  useEffect(() => {
+    if (!more) return;
+    const close = (e: PointerEvent) => !moreRef.current?.contains(e.target as Node) && setMore(false);
+    document.addEventListener("pointerdown", close);
+    return () => document.removeEventListener("pointerdown", close);
+  }, [more]);
 
   // timeline: click seeks, drag selects a loop (snapped to bar lines)
   useEffect(() => {
@@ -183,54 +201,103 @@ export function Transport(p: Props) {
           {p.frozen && <span className="ml-1 rounded-md bg-accent-soft px-1.5 py-0.5 text-[11.5px] font-medium text-accent">чекаю на тебе</span>}
         </div>
 
-        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-          <Seg
-            value={p.originalLocked ? "piano" : p.outputs}
-            onChange={p.onOutputs}
-            options={[
-              { id: "original", label: "Оригінал", disabled: p.originalLocked },
-              { id: "piano", label: "Піаніно" },
-              { id: "both", label: "Разом", disabled: p.originalLocked },
-            ]}
-          />
-          <Stepper
-            label="Швидкість"
-            title="Швидкість (клік — 100%)"
-            value={`${ratePct}%`}
-            onMinus={() => p.onRate(Math.max(0.25, Math.round((p.rate - 0.05) * 100) / 100))}
-            onPlus={() => p.onRate(Math.min(1.5, Math.round((p.rate + 0.05) * 100) / 100))}
-            onReset={() => p.onRate(1)}
-          />
-          <Stepper
-            label="Тональність"
-            title="Транспонування в півтонах (клік — 0)"
-            icon={<IconTranspose size={13} className="text-mute" />}
-            value={p.transpose > 0 ? `+${p.transpose}` : String(p.transpose)}
-            onMinus={() => p.onTranspose(Math.max(-12, p.transpose - 1))}
-            onPlus={() => p.onTranspose(Math.min(12, p.transpose + 1))}
-            onReset={() => p.onTranspose(0)}
-          />
-          <Seg
-            value={p.myHand}
-            onChange={p.onMyHand}
-            options={[
-              { id: "L", label: "Ліва" },
-              { id: "both", label: "Обидві" },
-              { id: "R", label: "Права" },
-            ]}
-          />
-          <Toggle on={!!p.loop} onClick={p.onLoopToggle} title="Зациклити 4 такти (або протягни по шкалі)">
-            <IconLoop size={16} />
-            <span className="max-lg:hidden">Цикл</span>
-          </Toggle>
-          <Toggle on={p.metronome} onClick={p.onMetronome} title="Метроном">
-            <IconMetronome size={16} />
-          </Toggle>
-          <Toggle on={p.waitOn} onClick={p.onWait} title="Чекати, поки зіграєш правильні ноти (потрібне MIDI-піаніно)">
-            <IconHourglass size={16} />
-            <span className="max-lg:hidden">Чекати мене</span>
-          </Toggle>
-        </div>
+        {(() => {
+          const outputs = (
+            <Seg
+              value={p.originalLocked ? "piano" : p.outputs}
+              onChange={p.onOutputs}
+              options={[
+                { id: "original", label: "Оригінал", disabled: p.originalLocked },
+                { id: "piano", label: "Піаніно" },
+                { id: "both", label: "Разом", disabled: p.originalLocked },
+              ]}
+            />
+          );
+          const speed = (
+            <Stepper
+              label="Швидкість"
+              title="Швидкість (клік — 100%)"
+              value={`${ratePct}%`}
+              onMinus={() => p.onRate(Math.max(0.25, Math.round((p.rate - 0.05) * 100) / 100))}
+              onPlus={() => p.onRate(Math.min(1.5, Math.round((p.rate + 0.05) * 100) / 100))}
+              onReset={() => p.onRate(1)}
+            />
+          );
+          const transpose = (
+            <Stepper
+              label="Тональність"
+              title="Транспонування в півтонах (клік — 0)"
+              icon={<IconTranspose size={13} className="text-mute" />}
+              value={p.transpose > 0 ? `+${p.transpose}` : String(p.transpose)}
+              onMinus={() => p.onTranspose(Math.max(-12, p.transpose - 1))}
+              onPlus={() => p.onTranspose(Math.min(12, p.transpose + 1))}
+              onReset={() => p.onTranspose(0)}
+            />
+          );
+          const hands = (
+            <Seg
+              value={p.myHand}
+              onChange={p.onMyHand}
+              options={[
+                { id: "L", label: "Ліва" },
+                { id: "both", label: "Обидві" },
+                { id: "R", label: "Права" },
+              ]}
+            />
+          );
+          const toggles = (
+            <>
+              <Toggle on={!!p.loop} onClick={p.onLoopToggle} title="Зациклити 4 такти (або протягни по шкалі)">
+                <IconLoop size={16} />
+                <span className={compact ? "" : "max-lg:hidden"}>Цикл</span>
+              </Toggle>
+              <Toggle on={p.metronome} onClick={p.onMetronome} title="Метроном">
+                <IconMetronome size={16} />
+                {compact && <span>Метроном</span>}
+              </Toggle>
+              <Toggle on={p.waitOn} onClick={p.onWait} title="Чекати, поки зіграєш правильні ноти (потрібне MIDI-піаніно)">
+                <IconHourglass size={16} />
+                <span className={compact ? "" : "max-lg:hidden"}>Чекати мене</span>
+              </Toggle>
+            </>
+          );
+          if (!compact) {
+            return (
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+                {outputs}
+                {speed}
+                {transpose}
+                {hands}
+                {toggles}
+              </div>
+            );
+          }
+          return (
+            <div className="ml-auto flex items-center gap-1.5">
+              {speed}
+              <div ref={moreRef} className="relative">
+                <button
+                  onClick={() => setMore((m) => !m)}
+                  aria-label="Ще"
+                  className={`grid h-9 w-9 place-items-center rounded-xl ${more ? "bg-ink text-white" : "bg-hover text-ink-2"}`}
+                >
+                  <IconDots size={18} />
+                </button>
+                {more && (
+                  <div className="pop-in absolute right-0 bottom-full z-40 mb-2 flex w-[300px] max-w-[calc(100vw-24px)] flex-col gap-2 rounded-2xl border border-line bg-card p-3 shadow-[var(--shadow-pop)]">
+                    <div className="text-[11px] font-medium tracking-wide text-faint uppercase">Звук</div>
+                    {outputs}
+                    <div className="text-[11px] font-medium tracking-wide text-faint uppercase">Я граю</div>
+                    {hands}
+                    <div className="text-[11px] font-medium tracking-wide text-faint uppercase">Тональність</div>
+                    <div className="flex">{transpose}</div>
+                    <div className="mt-1 flex flex-wrap gap-1.5">{toggles}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

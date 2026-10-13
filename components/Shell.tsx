@@ -30,7 +30,7 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [mobile, setMobile] = useState(false);
 
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
+    const mq = window.matchMedia("(max-width: 767px), (max-height: 520px)");
     const apply = () => setMobile(mq.matches);
     apply();
     mq.addEventListener("change", apply);

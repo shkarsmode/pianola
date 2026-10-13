@@ -102,6 +102,9 @@ export function SettingsPanel({
       </div>
 
       <div className="mt-1 border-t border-line pt-3 pb-1 text-[11px] font-medium tracking-wide text-faint uppercase">Навчання</div>
+      <Row label="Цикл прискорюється" hint="Кожне коло циклу на 5% швидше, поки не 100%">
+        <Switch on={settings.loopRamp} onChange={(v) => onChange({ loopRamp: v })} />
+      </Row>
       <Row label="Зручна тональність" hint="Транспонувати так, щоб було менше чорних клавіш">
         <button onClick={onEasyKey} className="h-8 shrink-0 rounded-lg bg-hover px-3 text-[13px] font-medium hover:bg-line">
           Підібрати

@@ -238,6 +238,36 @@ function Player2({ song, analysis }: { song: SongMeta & { audioUrl?: string }; a
     if (player) player.loop = loop;
   }, [player, loop]);
 
+  // practising a loop slowly: each pass a little faster, until full speed
+  const rateRef = useRef(prefs.rate);
+  rateRef.current = prefs.rate;
+  useEffect(() => {
+    if (!player) return;
+    player.onLoopWrap = settings.loopRamp
+      ? () => {
+          if (rateRef.current < 1) setPrefs({ rate: Math.min(1, Math.round((rateRef.current + 0.05) * 100) / 100) });
+        }
+      : null;
+  }, [player, settings.loopRamp, setPrefs]);
+
+  // keep the screen awake while playing (a tablet on the piano stand)
+  useEffect(() => {
+    if (!playing || !("wakeLock" in navigator)) return;
+    let lock: WakeLockSentinel | null = null;
+    let released = false;
+    navigator.wakeLock
+      .request("screen")
+      .then((l) => {
+        if (released) void l.release();
+        else lock = l;
+      })
+      .catch(() => undefined);
+    return () => {
+      released = true;
+      void lock?.release();
+    };
+  }, [playing]);
+
   // ---- MIDI and "wait for me"
   const groups = useMemo(() => {
     const mine = notes.filter((n) => myHands.includes(n.hand)).sort((a, b) => a.start - b.start);
@@ -467,6 +497,8 @@ function Player2({ song, analysis }: { song: SongMeta & { audioUrl?: string }; a
           />
         )}
 
+        <PortraitHint />
+
         {toast && (
           <div className="pop-in absolute bottom-4 left-1/2 z-30 max-w-[90%] -translate-x-1/2 rounded-xl bg-ink px-3.5 py-2 text-[13px] text-white shadow-lg">{toast}</div>
         )}
@@ -500,6 +532,41 @@ function Player2({ song, analysis }: { song: SongMeta & { audioUrl?: string }; a
         onSeek={(t) => player?.seek(t)}
       />
     </div>
+  );
+}
+
+/** On a phone held upright the keyboard is tiny; suggest turning it (once per session). */
+function PortraitHint() {
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const check = () => {
+      let dismissed = false;
+      try {
+        dismissed = sessionStorage.getItem("pianola:portrait-hint") === "1";
+      } catch {
+        /* storage unavailable */
+      }
+      setShow(!dismissed && window.innerWidth < 560 && window.innerHeight > window.innerWidth);
+    };
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+  if (!show) return null;
+  return (
+    <button
+      onClick={() => {
+        setShow(false);
+        try {
+          sessionStorage.setItem("pianola:portrait-hint", "1");
+        } catch {
+          /* storage unavailable */
+        }
+      }}
+      className="pop-in absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-full bg-white/92 px-3.5 py-1.5 text-[12.5px] font-medium whitespace-nowrap text-ink shadow-md"
+    >
+      ↻ Поверни телефон — клавіші стануть більшими
+    </button>
   );
 }
 

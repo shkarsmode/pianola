@@ -97,6 +97,11 @@ export class RollRenderer {
     return this.h - this.keyboardHeight;
   }
 
+  /** Falling speed: the chosen px/s, scaled down on short screens so a few seconds stay visible. */
+  get pps(): number {
+    return this.opts.pxPerSec * Math.max(0.45, Math.min(1, this.hitY / 520));
+  }
+
   get size() {
     return { w: this.w, h: this.h };
   }
@@ -141,7 +146,7 @@ export class RollRenderer {
   }
 
   timeAtY(y: number, t: number): number {
-    return t + (this.hitY - y) / this.opts.pxPerSec;
+    return t + (this.hitY - y) / this.pps;
   }
 
   hit(x: number, y: number, t: number): RollHit {
@@ -171,7 +176,7 @@ export class RollRenderer {
     const layout = this.layout;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     const hitY = this.hitY;
-    const pps = this.opts.pxPerSec;
+    const pps = this.pps;
     const view = hitY / pps;
 
     // background
@@ -252,7 +257,13 @@ export class RollRenderer {
       // labels sit at the bottom of the note, where the eye meets the keyboard
       let labelBottom = bottom - 3;
       const badge = Math.min(nw - 2, 18);
-      if (this.opts.fingers && n.finger && nh >= 12 && badge >= 9) {
+      if (this.opts.fingers && n.finger && nh >= 10 && badge < 9 && nw >= 5) {
+        // narrow keys (a phone in portrait): the number alone, no badge
+        ctx.fillStyle = "rgba(255,255,255,0.95)";
+        ctx.font = `700 ${Math.max(7, Math.min(10, nw * 1.1))}px ${this.font}`;
+        ctx.fillText(String(n.finger), x + nw / 2, labelBottom - 5);
+        labelBottom -= 11;
+      } else if (this.opts.fingers && n.finger && nh >= 12 && badge >= 9) {
         const by = labelBottom - badge;
         ctx.fillStyle = "rgba(255,255,255,0.92)";
         roundRect(ctx, x + (nw - badge) / 2, by, badge, badge, 4);

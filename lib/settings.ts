@@ -14,6 +14,7 @@ export interface Settings {
   pianoVol: number;
   myHand: "both" | "R" | "L";
   metronome: boolean;
+  loopRamp: boolean; // a loop speeds up by 5% each pass, up to 100%
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -28,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pianoVol: 0.85,
   myHand: "both",
   metronome: false,
+  loopRamp: false,
 };
 
 const KEY = "pianola:settings";

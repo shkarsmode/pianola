@@ -33,6 +33,8 @@ export class Player {
   metronome = false;
   /** Returns the time of the first note that still waits for the player, or null. */
   waitCheck: ((t: number) => number | null) | null = null;
+  /** Called each time a loop wraps around (for "speed up a little every pass"). */
+  onLoopWrap: (() => void) | null = null;
 
   private notes: PNote[] = [];
   private pedal: [number, number][] = [];
@@ -213,6 +215,7 @@ export class Player {
     }
     if (this.loop && t >= this.loop.b) {
       this.seek(this.loop.a);
+      this.onLoopWrap?.();
       return this.loop.a;
     }
     if (t >= this.duration) {
