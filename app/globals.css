@@ -1,0 +1,92 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #15171c;
+  --color-ink-2: #3a3e47;
+  --color-mute: #6c707a;
+  --color-faint: #9a9da5;
+  --color-line: #e7e6e2;
+  --color-line-2: #d9d8d3;
+  --color-paper: #f6f5f2;
+  --color-card: #ffffff;
+  --color-hover: #efeeea;
+  --color-accent: #2f5bea;
+  --color-accent-2: #244bd0;
+  --color-accent-soft: #e9eefd;
+  --color-lh: #25c48d;
+  --color-rh: #4b8bff;
+  --color-danger: #d93d3d;
+  --color-roll: #0d1017;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --shadow-pop: 0 10px 30px -8px rgb(20 22 30 / 0.22), 0 2px 6px -2px rgb(20 22 30 / 0.12);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Calm motion: something that appears fades in with a small rise; nothing moves on clicks. */
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.pop-in {
+  animation: pop-in 180ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.fade-in {
+  animation: fade-in 160ms ease-out both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pop-in,
+  .fade-in {
+    animation: none;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+input[type="range"].slim {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--color-line-2);
+  outline: none;
+}
+input[type="range"].slim::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--color-ink);
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.3);
+  cursor: pointer;
+}
